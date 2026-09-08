@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Huddle — private meeting memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12141C;
+    --surface:#1B1E29;
+    --card:#232733;
+    --card-hover:#292E3C;
+    --hair:#333849;
+    --brass:#C6A06A;
+    --brass-dim:#8A6F45;
+    --brass-text:#E8C98F;
+    --sage:#8FB5A0;
+    --sage-text:#B9D8C8;
+    --coral:#D98673;
+    --text:#EDEAE0;
+    --text-dim:#9A9CAE;
+    --text-faint:#5E6178;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  html,body{
+    margin:0;
+    height:100%;
+    background:var(--ink);
+  }
+  #huddle-root{
+    font-family:'Inter',sans-serif;
+    background:var(--ink);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:stretch;
+  }
+  .device{
+    width:100%;
+    max-width:430px;
+    height:100vh;
+    max-height:900px;
+    background:var(--ink);
+    border-radius:0;
+    border:none;
+    box-shadow:none;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  @media (min-width:431px){
+    .device{
+      border-radius:40px;
+      border:1px solid var(--hair);
+      box-shadow:0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 8px #0A0B10;
+      margin:1.5rem 0;
+      height:min(90vh,860px);
+    }
+  }
+  .notch{
+    position:absolute;
+    top:0;
+    left:50%;
+    transform:translateX(-50%);
+    width:120px;
+    height:22px;
+    background:#0A0B10;
+    border-radius:0 0 16px 16px;
+    z-index:5;
+  }
+  .statusbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 22px 2px;
+    font-size:12px;
+    color:var(--text-dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .topbar{
+    padding:14px 22px 16px;
+    border-bottom:1px solid var(--hair);
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .brand-mark{
+    font-family:'Fraunces',serif;
+    font-size:21px;
+    font-weight:500;
+    color:var(--text);
+    letter-spacing:-0.01em;
+  }
+  .brand-tag{
+    font-size:11px;
+    color:var(--text-faint);
+  }
+  .screen{
+    flex:1 1 auto;
+    min-height:0;
+    padding:18px 20px 24px;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+  }
+  .screen::-webkit-scrollbar{display:none;}
+  .screen h2{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:19px;
+    color:var(--text);
+    margin:0 0 4px;
+  }
+  .screen .lede{
+    font-size:13px;
+    color:var(--text-dim);
+    margin:0 0 18px;
+    line-height:1.5;
+  }
+  textarea{
+    width:100%;
+    min-height:120px;
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:var(--radius);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    padding:12px 14px;
+    resize:vertical;
+    line-height:1.6;
+  }
+  textarea:focus,input:focus{outline:1.5px solid var(--brass); border-color:var(--brass);}
+  textarea::placeholder{color:var(--text-faint);}
+  .field-label{
+    font-size:12px;
+    color:var(--text-dim);
+    margin:14px 0 6px;
+    display:block;
+  }
+  input[type=text]{
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:10px;
+    color:var(--text);
+    font-size:13px;
+    padding:10px 12px;
+    font-family:'Inter',sans-serif;
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    width:100%;
+    padding:12px 16px;
+    border-radius:10px;
+    border:1px solid var(--brass-dim);
+    background:var(--brass);
+    color:#241B0C;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    font-weight:600;
+    cursor:pointer;
+    margin-top:16px;
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn.secondary{
+    background:transparent;
+    border:1px solid var(--hair);
+    color:var(--text);
+    font-weight:500;
+  }
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .note{
+    font-size:11px;
+    color:var(--text-faint);
+    margin-top:10px;
+    line-height:1.5;
+  }
+  .error-text{
+    color:var(--coral);
+    font-size:12px;
+    margin-top:6px;
+  }
+  .processing{
+    display:none;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    color:var(--brass-text);
+    margin-top:14px;
+  }
+  .processing.active{display:flex;}
+  .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--brass-text);
+    animation:pulse 1s infinite ease-in-out;
+  }
+  @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
+  .result-block{margin-top:20px;}
+  .result-section{margin-bottom:16px;}
+  .result-heading{
+    font-size:11px;
+    letter-spacing:0.02em;
+    color:var(--text-dim);
+    margin:0 0 8px;
+  }
+  .result-heading.decisions{color:var(--sage-text);}
+  .result-heading.actions{color:var(--brass-text);}
+  .result-heading.questions{color:#C7A6D9;}
+  .chip-row{display:flex;flex-direction:column;gap:6px;}
+  .chip{
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-left:2px solid var(--hair);
+    border-radius:8px;
+    padding:9px 12px;
+    font-size:12.5px;
+    color:var(--text);
+    line-height:1.5;
+  }
+  .chip.decisions{border-left-color:var(--sage);}
+  .chip.actions{border-left-color:var(--brass);}
+  .chip.questions{border-left-color:#C7A6D9;}
+  .chip .owner{
+    color:var(--brass-text);
+    font-weight:500;
+  }
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--text-faint);
+  }
+  .empty i{font-size:26px;display:block;margin-bottom:10px;color:var(--text-faint);}
+  .empty p{font-size:13px;margin:0;line-height:1.6;}
+  .vault-item{
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:var(--radius);
+    padding:13px 15px;
+    margin-bottom:10px;
+    cursor:pointer;
+  }
+  .vault-item:hover{background:var(--card-hover);}
+  .vault-item-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .vault-item-title{font-size:13.5px;font-weight:500;color:var(--text);}
+  .vault-item-date{font-size:11px;color:var(--text-faint);white-space:nowrap;}
+  .vault-item-meta{font-size:11.5px;color:var(--text-dim);margin-top:5px;}
+  .vault-detail{
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:var(--radius);
+    padding:15px 16px;
+    margin-bottom:14px;
+  }
+  .vault-detail-back{
+    font-size:12px;
+    color:var(--brass-text);
+    cursor:pointer;
+    margin-bottom:12px;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+  }
+  .search-result{
+    background:var(--card);
+    border:1px solid var(--hair);
+    border-radius:var(--radius);
+    padding:13px 15px;
+    margin-bottom:10px;
+  }
+  .search-result-source{
+    font-size:11px;
+    color:var(--brass-text);
+    margin-bottom:6px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .search-result-snippet{
+    font-size:12.5px;
+    color:var(--text);
+    line-height:1.55;
+  }
+  .search-result-snippet mark{
+    background:transparent;
+    color:var(--brass-text);
+    font-weight:600;
+  }
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--hair);
+    background:var(--ink);
+  }
+  .tab{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    padding:11px 0 14px;
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+    font-size:10.5px;
+  }
+  .tab i{font-size:19px;}
+  .tab.active{color:var(--brass-text);}
+  .home-indicator{
+    display:flex;
+    justify-content:center;
+    padding:8px 0 10px;
+    background:var(--ink);
+  }
+  .home-indicator span{
+    width:120px;
+    height:4px;
+    border-radius:3px;
+    background:var(--text-faint);
+    opacity:0.5;
+  }
+  .vault-count-badge{
+    display:inline-block;
+    background:var(--card);
+    color:var(--text-dim);
+    font-size:10.5px;
+    padding:2px 8px;
+    border-radius:20px;
+    margin-left:8px;
+    border:1px solid var(--hair);
+  }
+</style>
+</head>
+<body>
+<div id="huddle-root">
+  <div class="device">
+    <div class="notch"></div>
+    <div class="statusbar"><span>9:41</span><span>iQOO · offline</span></div>
+    <div class="topbar">
+      <div class="brand">
+        <span class="brand-mark">Huddle</span>
+        <span class="brand-tag">on-device meeting memory</span>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-capture" style="display:block;">
+      <h2>Capture</h2>
+      <p class="lede">Photograph the whiteboard. The device reads it locally — nothing is uploaded.</p>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="photo-btn" style="margin-top:0;"><i class="ti ti-camera" aria-hidden="true"></i>Take a photo</button>
+        <button class="btn secondary" id="demo-btn" style="margin-top:0;border-color:var(--brass-dim);color:var(--brass-text);"><i class="ti ti-sparkles" aria-hidden="true"></i>Try demo</button>
+      </div>
+      <div id="photo-preview-wrap" style="display:none;">
+        <img id="photo-preview" style="width:100%;border-radius:10px;border:1px solid var(--hair);margin-top:12px;display:block;">
+        <div class="processing" id="ocr-indicator" style="margin-top:10px;">
+          <span class="dot"></span> Reading photo on-device…
+        </div>
+      </div>
+      <span class="field-label" style="margin-top:18px;">Notes read from the photo — check and edit before extracting</span>
+      <textarea id="raw-input" placeholder="e.g. Decided to launch the beta on Friday. Priya will finalize the onboarding copy by Wed. Do we need legal sign-off on the new terms? Sanjay to set up the analytics dashboard before demo day."></textarea>
+      <span class="field-label">Meeting title</span>
+      <input type="text" id="meeting-title" placeholder="Sprint planning, 12 Sept">
+      <div id="capture-error" class="error-text" style="display:none;"></div>
+      <button class="btn" id="extract-btn"><i class="ti ti-scan" aria-hidden="true"></i>Extract with on-device model</button>
+      <div class="processing" id="processing-indicator">
+        <span class="dot"></span> Reading notes locally on the NPU…
+      </div>
+      <div class="result-block" id="result-block" style="display:none;"></div>
+      <p class="note" id="capture-note" style="display:none;">Nothing leaves the device. Extraction, storage, and search all run locally.</p>
+    </div>
+
+    <div class="screen" id="screen-vault" style="display:none;"></div>
+    <div class="screen" id="screen-ask" style="display:none;"></div>
+
+    <div class="tabbar">
+      <button class="tab active" data-tab="capture"><i class="ti ti-camera" aria-hidden="true"></i>Capture</button>
+      <button class="tab" data-tab="vault"><i class="ti ti-lock" aria-hidden="true"></i>Vault</button>
+      <button class="tab" data-tab="ask"><i class="ti ti-message-circle-2" aria-hidden="true"></i>Ask</button>
+    </div>
+    <div class="home-indicator"><span></span></div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script>
+(function(){
+  var STORAGE_KEY = 'huddle:meetings';
+  var lastExtraction = null;
+  var currentDetailId = null;
+
+  function escapeHtml(s){
+    var d = document.createElement('div');
+    d.innerText = s;
+    return d.innerHTML;
+  }
+
+  function extract(text){
+    var lines = text.split(/\n|(?<=[.!?])\s+/).map(function(l){return l.trim();}).filter(Boolean);
+    var decisions = [], actions = [], questions = [];
+    var decisionWords = /\b(decided|agreed|final(ize|ized)?|confirmed|going with|approved)\b/i;
+    var actionWords = /\b(will|to do|todo|need(s)? to|has to|should|assign(ed)?|by (mon|tue|wed|thu|fri|sat|sun)|due)\b/i;
+    var actionLead = /^([A-Z][a-zA-Z]+)\s+(?:will|to|needs?\s+to|has\s+to|should)\s+/;
+    lines.forEach(function(line){
+      if(!line) return;
+      if(/\?\s*$/.test(line)){
+        questions.push(line);
+        return;
+      }
+      if(decisionWords.test(line)){
+        decisions.push(line);
+        return;
+      }
+      var leadMatch = line.match(actionLead);
+      if(leadMatch){
+        actions.push({owner: leadMatch[1], task: line});
+        return;
+      }
+      if(actionWords.test(line)){
+        actions.push({owner: null, task: line});
+        return;
+      }
+    });
+    return {decisions: decisions, actions: actions, questions: questions};
+  }
+
+  function renderResult(res){
+    var block = document.getElementById('result-block');
+    var html = '';
+    if(res.decisions.length){
+      html += '<div class="result-section"><p class="result-heading decisions">Decisions</p><div class="chip-row">';
+      res.decisions.forEach(function(d){ html += '<div class="chip decisions">'+escapeHtml(d)+'</div>'; });
+      html += '</div></div>';
+    }
+    if(res.actions.length){
+      html += '<div class="result-section"><p class="result-heading actions">Action items</p><div class="chip-row">';
+      res.actions.forEach(function(a){
+        var owner = a.owner ? '<span class="owner">'+escapeHtml(a.owner)+'</span> — ' : '';
+        html += '<div class="chip actions">'+owner+escapeHtml(a.task)+'</div>';
+      });
+      html += '</div></div>';
+    }
+    if(res.questions.length){
+      html += '<div class="result-section"><p class="result-heading questions">Open questions</p><div class="chip-row">';
+      res.questions.forEach(function(q){ html += '<div class="chip questions">'+escapeHtml(q)+'</div>'; });
+      html += '</div></div>';
+    }
+    if(!res.decisions.length && !res.actions.length && !res.questions.length){
+      html = '<p class="note">No clear decisions, actions, or questions detected. Try adding a sentence with "decided", "will", or a question mark.</p>';
+    }
+    block.innerHTML = html;
+    block.style.display = 'block';
+    document.getElementById('capture-note').style.display = 'block';
+  }
+
+  var DEMO_TEXT = "Sprint planning - Sept 12\n\nDecided to launch the beta on Friday.\nPriya will finalize the onboarding copy by Wed.\nDo we need legal sign-off on the new terms?\nSanjay to set up the analytics dashboard before demo day.\nAgreed to cut the referral feature from v1.\nWho owns the App Store listing copy?\nRiya needs to brief support team before launch.";
+
+  var DEMO_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="440" viewBox="0 0 600 440">' +
+    '<defs>' +
+      '<filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3"/></filter>' +
+      '<radialGradient id="stain" cx="50%" cy="50%" r="50%">' +
+        '<stop offset="0%" stop-color="#8a6a3a" stop-opacity="0.18"/>' +
+        '<stop offset="100%" stop-color="#8a6a3a" stop-opacity="0"/>' +
+      '</radialGradient>' +
+      '<radialGradient id="glare" cx="30%" cy="20%" r="70%">' +
+        '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>' +
+        '<stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>' +
+      '</radialGradient>' +
+    '</defs>' +
+    '<rect width="600" height="440" fill="#eeece3"/>' +
+    '<rect x="0" y="0" width="600" height="440" fill="url(#stain)"/>' +
+    '<g transform="rotate(-2.4 300 220)" filter="url(#rough)">' +
+      '<rect x="14" y="12" width="572" height="416" fill="none" stroke="#b7b1a0" stroke-width="5"/>' +
+      '<circle cx="60" cy="60" r="3" fill="#9a9585"/>' +
+      '<circle cx="540" cy="55" r="3" fill="#9a9585"/>' +
+      '<circle cx="60" cy="400" r="3" fill="#9a9585"/>' +
+      '<circle cx="540" cy="400" r="3" fill="#9a9585"/>' +
+      '<circle cx="470" cy="340" r="55" fill="#7a5a30" opacity="0.06"/>' +
+      '<g font-family="Segoe Print, Bradley Hand, Comic Sans MS, cursive">' +
+        '<text x="34" y="52" font-size="24" font-weight="bold" fill="#26314a" transform="rotate(-1.2 34 52)">Sprint planning — Sept 12</text>' +
+        '<path d="M32 62 Q180 58 336 64" stroke="#26314a" stroke-width="2.5" fill="none"/>' +
+
+        '<text x="40" y="104" font-size="18" fill="#245a3f" transform="rotate(1 40 104)">Decided: launch the beta Friday</text>' +
+
+        '<text x="46" y="140" font-size="18" fill="#1f2b3d" transform="rotate(-1.6 46 140)">Priya - finalize onboarding copy (wed)</text>' +
+        '<path d="M42 132 L280 148" stroke="#1f2b3d" stroke-width="1.4" opacity="0.55"/>' +
+
+        '<text x="42" y="178" font-size="18" fill="#5c3a86" transform="rotate(0.8 42 178)">need legal sign-off on new terms??</text>' +
+
+        '<text x="200" y="178" font-size="15" fill="#c9524a" transform="rotate(-4 200 178)" text-decoration="underline">URGENT</text>' +
+
+        '<text x="36" y="215" font-size="18" fill="#1f2b3d" transform="rotate(1.4 36 215)">Sanjay to set up analytics dash</text>' +
+        '<text x="60" y="238" font-size="14" fill="#1f2b3d" opacity="0.75" transform="rotate(1 60 238)">— before demo day</text>' +
+
+        '<text x="48" y="276" font-size="18" fill="#245a3f" transform="rotate(-0.6 48 276)">agreed: cut referral feat from v1</text>' +
+        '<path d="M46 267 L330 283" stroke="#245a3f" stroke-width="1.3" opacity="0.4"/>' +
+
+        '<text x="40" y="312" font-size="17" fill="#5c3a86" transform="rotate(1.8 40 312)" text-decoration="line-through" opacity="0.55">who owns app store copy</text>' +
+        '<text x="290" y="308" font-size="17" fill="#5c3a86" transform="rotate(-1 290 308)">who owns App Store listing copy?</text>' +
+
+        '<text x="44" y="350" font-size="18" fill="#1f2b3d" transform="rotate(-1.4 44 350)">Riya needs to brief support team</text>' +
+        '<text x="60" y="372" font-size="14" fill="#1f2b3d" opacity="0.75" transform="rotate(0.6 60 372)">before launch — dont forget!!</text>' +
+
+        '<path d="M470 90 q30 -18 46 6 q10 16 -14 20" stroke="#c9524a" stroke-width="2.5" fill="none"/>' +
+        '<circle cx="500" cy="118" r="21" fill="none" stroke="#c9524a" stroke-width="2.5" transform="rotate(-8 500 118)"/>' +
+      '</g>' +
+    '</g>' +
+    '<rect width="600" height="440" fill="url(#glare)"/>' +
+    '</svg>'
+  );
+
+  document.getElementById('demo-btn').addEventListener('click', function(){
+    var img = document.getElementById('photo-preview');
+    img.src = DEMO_SVG;
+    document.getElementById('photo-preview-wrap').style.display = 'block';
+    var indicator = document.getElementById('ocr-indicator');
+    var textEl = document.getElementById('raw-input');
+    textEl.value = '';
+    textEl.disabled = true;
+    indicator.classList.add('active');
+    document.getElementById('meeting-title').value = 'Sprint planning - Sept 12';
+    setTimeout(function(){
+      textEl.value = DEMO_TEXT;
+      indicator.classList.remove('active');
+      textEl.disabled = false;
+    }, 1100);
+  });
+
+  document.getElementById('photo-btn').addEventListener('click', function(){
+    document.getElementById('photo-input').click();
+  });
+
+  document.getElementById('photo-input').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = document.getElementById('photo-preview');
+      img.src = ev.target.result;
+      document.getElementById('photo-preview-wrap').style.display = 'block';
+      var indicator = document.getElementById('ocr-indicator');
+      indicator.classList.add('active');
+      var textEl = document.getElementById('raw-input');
+      textEl.disabled = true;
+      if(typeof Tesseract === 'undefined'){
+        indicator.classList.remove('active');
+        textEl.disabled = false;
+        textEl.placeholder = 'OCR library failed to load — type or paste the notes from the photo here instead.';
+        return;
+      }
+      Tesseract.recognize(ev.target.result, 'eng')
+        .then(function(result){
+          var text = (result && result.data && result.data.text) ? result.data.text.trim() : '';
+          textEl.value = text || '';
+          if(!text){
+            textEl.placeholder = 'Could not read clear text from that photo — try a clearer shot, or type the notes here.';
+          }
+        })
+        .catch(function(err){
+          console.error('OCR error', err);
+          textEl.placeholder = 'On-device reading failed on this photo — type or paste the notes here instead.';
+        })
+        .finally(function(){
+          indicator.classList.remove('active');
+          textEl.disabled = false;
+        });
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('extract-btn').addEventListener('click', function(){
+    var textEl = document.getElementById('raw-input');
+    var errEl = document.getElementById('capture-error');
+    var text = textEl.value.trim();
+    if(!text){
+      errEl.textContent = 'Paste or type your meeting notes first.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    var btn = document.getElementById('extract-btn');
+    var proc = document.getElementById('processing-indicator');
+    btn.disabled = true;
+    proc.classList.add('active');
+    document.getElementById('result-block').style.display = 'none';
+    setTimeout(function(){
+      var res = extract(text);
+      lastExtraction = {raw: text, extraction: res};
+      renderResult(res);
+      proc.classList.remove('active');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-device-floppy" aria-hidden="true"></i>Save to vault';
+      btn.onclick = saveToVault;
+    }, 900);
+  });
+
+  async function saveToVault(){
+    var titleEl = document.getElementById('meeting-title');
+    var title = titleEl.value.trim() || 'Untitled meeting';
+    if(!lastExtraction) return;
+    var entry = {
+      id: 'm_' + Date.now(),
+      title: title,
+      date: new Date().toISOString(),
+      raw: lastExtraction.raw,
+      extraction: lastExtraction.extraction
+    };
+    try{
+      var list = [];
+      try{
+        var existing = await window.storage.get(STORAGE_KEY);
+        if(existing && existing.value) list = JSON.parse(existing.value);
+      }catch(e){ list = []; }
+      list.unshift(entry);
+      await window.storage.set(STORAGE_KEY, JSON.stringify(list));
+    }catch(e){
+      console.error('Storage error', e);
+    }
+    document.getElementById('raw-input').value = '';
+    titleEl.value = '';
+    document.getElementById('result-block').style.display = 'none';
+    document.getElementById('result-block').innerHTML = '';
+    document.getElementById('capture-note').style.display = 'none';
+    var btn = document.getElementById('extract-btn');
+    btn.innerHTML = '<i class="ti ti-scan" aria-hidden="true"></i>Extract with on-device model';
+    btn.onclick = null;
+    lastExtraction = null;
+    switchTab('vault');
+  }
+
+  async function loadMeetings(){
+    try{
+      var existing = await window.storage.get(STORAGE_KEY);
+      if(existing && existing.value) return JSON.parse(existing.value);
+    }catch(e){}
+    return [];
+  }
+
+  function fmtDate(iso){
+    var d = new Date(iso);
+    return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' · ' + d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'});
+  }
+
+  async function renderVaultList(){
+    var screen = document.getElementById('screen-vault');
+    var meetings = await loadMeetings();
+    var html = '<h2>Vault<span class="vault-count-badge">'+meetings.length+' stored locally</span></h2><p class="lede">Everything here lives only on this device. Nothing has been sent anywhere.</p>';
+    if(!meetings.length){
+      html += '<div class="empty"><i class="ti ti-lock" aria-hidden="true"></i><p>Nothing saved yet.<br>Capture a meeting to start your private vault.</p></div>';
+    } else {
+      meetings.forEach(function(m){
+        var itemCount = m.extraction.decisions.length + m.extraction.actions.length + m.extraction.questions.length;
+        html += '<div class="vault-item" data-id="'+m.id+'"><div class="vault-item-top"><span class="vault-item-title">'+escapeHtml(m.title)+'</span><span class="vault-item-date">'+fmtDate(m.date)+'</span></div><div class="vault-item-meta">'+itemCount+' items extracted</div></div>';
+      });
+    }
+    screen.innerHTML = html;
+    screen.querySelectorAll('.vault-item').forEach(function(el){
+      el.addEventListener('click', function(){ renderVaultDetail(el.getAttribute('data-id')); });
+    });
+  }
+
+  async function renderVaultDetail(id){
+    var screen = document.getElementById('screen-vault');
+    var meetings = await loadMeetings();
+    var m = meetings.find(function(x){ return x.id === id; });
+    if(!m) return;
+    var html = '<div class="vault-detail-back" id="vault-back"><i class="ti ti-chevron-left" aria-hidden="true"></i>All meetings</div>';
+    html += '<div class="vault-detail"><h2 style="margin-bottom:2px;">'+escapeHtml(m.title)+'</h2><p class="lede" style="margin-bottom:14px;">'+fmtDate(m.date)+'</p>';
+    var r = m.extraction;
+    if(r.decisions.length){
+      html += '<p class="result-heading decisions">Decisions</p><div class="chip-row" style="margin-bottom:14px;">';
+      r.decisions.forEach(function(d){ html += '<div class="chip decisions">'+escapeHtml(d)+'</div>'; });
+      html += '</div>';
+    }
+    if(r.actions.length){
+      html += '<p class="result-heading actions">Action items</p><div class="chip-row" style="margin-bottom:14px;">';
+      r.actions.forEach(function(a){
+        var owner = a.owner ? '<span class="owner">'+escapeHtml(a.owner)+'</span> — ' : '';
+        html += '<div class="chip actions">'+owner+escapeHtml(a.task)+'</div>';
+      });
+      html += '</div>';
+    }
+    if(r.questions.length){
+      html += '<p class="result-heading questions">Open questions</p><div class="chip-row">';
+      r.questions.forEach(function(q){ html += '<div class="chip questions">'+escapeHtml(q)+'</div>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+    screen.innerHTML = html;
+    document.getElementById('vault-back').addEventListener('click', renderVaultList);
+  }
+
+  async function renderAskScreen(){
+    var screen = document.getElementById('screen-ask');
+    screen.innerHTML = '<h2>Ask</h2><p class="lede">Recall answers from your own meeting history — retrieved locally, no server round trip.</p><input type="text" id="ask-input" placeholder="What did we decide about the beta launch?"><button class="btn" id="ask-btn"><i class="ti ti-search" aria-hidden="true"></i>Search local vault</button><div id="ask-results"></div>';
+    document.getElementById('ask-btn').addEventListener('click', runAsk);
+    document.getElementById('ask-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') runAsk(); });
+  }
+
+  async function runAsk(){
+    var input = document.getElementById('ask-input');
+    var q = input.value.trim();
+    var resultsEl = document.getElementById('ask-results');
+    if(!q){
+      resultsEl.innerHTML = '<p class="error-text">Type a question first.</p>';
+      return;
+    }
+    var meetings = await loadMeetings();
+    var terms = q.toLowerCase().split(/\s+/).filter(function(t){ return t.length > 2; });
+    var results = [];
+    meetings.forEach(function(m){
+      var all = m.extraction.decisions.concat(
+        m.extraction.actions.map(function(a){ return (a.owner ? a.owner+': ' : '') + a.task; }),
+        m.extraction.questions
+      );
+      all.forEach(function(snippet){
+        var lower = snippet.toLowerCase();
+        var hit = terms.some(function(t){ return lower.indexOf(t) !== -1; });
+        if(hit) results.push({title: m.title, date: m.date, snippet: snippet, terms: terms});
+      });
+    });
+    if(!results.length){
+      resultsEl.innerHTML = meetings.length
+        ? '<div class="empty"><i class="ti ti-search-off" aria-hidden="true"></i><p>No matches in your local vault.<br>Try different words.</p></div>'
+        : '<div class="empty"><i class="ti ti-lock" aria-hidden="true"></i><p>Your vault is empty.<br>Capture a meeting first.</p></div>';
+      return;
+    }
+    var html = '';
+    results.forEach(function(r){
+      var highlighted = escapeHtml(r.snippet);
+      r.terms.forEach(function(t){
+        var re = new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');
+        highlighted = highlighted.replace(re, '<mark>$1</mark>');
+      });
+      html += '<div class="search-result"><div class="search-result-source"><span>'+escapeHtml(r.title)+'</span><span>'+fmtDate(r.date)+'</span></div><div class="search-result-snippet">'+highlighted+'</div></div>';
+    });
+    resultsEl.innerHTML = html;
+  }
+
+  function switchTab(name){
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.classList.toggle('active', t.getAttribute('data-tab') === name);
+    });
+    document.getElementById('screen-capture').style.display = name === 'capture' ? 'block' : 'none';
+    document.getElementById('screen-vault').style.display = name === 'vault' ? 'block' : 'none';
+    document.getElementById('screen-ask').style.display = name === 'ask' ? 'block' : 'none';
+    if(name === 'vault') renderVaultList();
+    if(name === 'ask') renderAskScreen();
+  }
+
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){ switchTab(t.getAttribute('data-tab')); });
+  });
+})();
+</script>
+</body>
+</html>
